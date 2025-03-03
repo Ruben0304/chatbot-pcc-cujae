@@ -143,7 +143,7 @@ const sendMessage = async () => {
   input.value = '';
 
   try {
-    const { data } = await axios.post('http://localhost:8000/chat', {
+    const { data } = await axios.post('https://chatbot-pcc-backend.vercel.app/chat', {
       message: userMessage
     });
 
