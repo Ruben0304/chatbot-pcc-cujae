@@ -69,7 +69,7 @@
               </div>
 
               <!-- Feedback buttons - only for agent messages -->
-              <div v-if="message.role === 'agent'" class="flex items-center gap-2 mt-1 ml-1">
+              <div v-if="message.role === 'agent' && message.message_id" class="flex items-center gap-2 mt-1 ml-1">
                 <button
                     @click="toggleFeedback(index, 'positive')"
                     :class="[
@@ -98,6 +98,15 @@
             </div>
           </div>
         </div>
+
+        <!-- Loading indicator -->
+        <div v-if="isLoading" class="flex justify-center mt-6 animate-fade-in">
+          <div class="loading-dots">
+            <div class="dot bg-blue-600"></div>
+            <div class="dot bg-blue-600"></div>
+            <div class="dot bg-blue-600"></div>
+          </div>
+        </div>
       </div>
 
       <!-- Input area -->
@@ -111,10 +120,15 @@
           ></textarea>
           <button
               @click="sendMessage"
-              :disabled="!input.trim()"
+              :disabled="!input.trim() || isLoading"
               class="p-3 bg-black text-white rounded-full hover:bg-gray-800 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center shadow-md hover:shadow-lg"
           >
-            <LucideSend class="h-5 w-5" />
+            <LucideSend v-if="!isLoading" class="h-5 w-5" />
+            <div v-else class="h-5 w-5 animate-spin">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 12a9 9 0 1 1-6.219-8.56"></path>
+              </svg>
+            </div>
           </button>
         </div>
       </div>
@@ -218,17 +232,26 @@ import {
   LucideAlertCircle
 } from 'lucide-vue-next';
 
+// Configuración base de la API
+const API_URL = "http://127.0.0.1:8000"; // Cambia esto a tu URL de producción cuando sea necesario
+
 const isOpen = ref(false);
 const input = ref('');
 const messagesContainer = ref(null);
+const isLoading = ref(false); // Estado para controlar el loading
+
 const messages = reactive([
   {
     role: 'agent',
     content: '¡Hola! ¿En qué puedo ayudarte hoy?',
-    timestamp: '14:08:28',
+    timestamp: new Date().toLocaleTimeString('es-ES', {
+      hour: '2-digit',
+      minute: '2-digit'
+    }),
     isNew: false,
     feedback: null,
-    feedbackDetails: null
+    feedbackDetails: null,
+    message_id: null // Los mensajes iniciales no tienen ID
   }
 ]);
 
@@ -258,7 +281,7 @@ watch(messages, async () => {
 }, { deep: true });
 
 const sendMessage = async () => {
-  if (!input.value.trim()) return;
+  if (!input.value.trim() || isLoading.value) return;
 
   const timestamp = new Date().toLocaleTimeString('es-ES', {
     hour: '2-digit',
@@ -275,18 +298,23 @@ const sendMessage = async () => {
   const userMessage = input.value;
   input.value = '';
 
+  // Activar el estado de carga
+  isLoading.value = true;
+
   try {
-    const { data } = await axios.post('https://chatbot-pcc-backend.vercel.app/chat', {
+    const { data } = await axios.post(`${API_URL}/chat`, {
       message: userMessage
     });
 
+    // Añadir respuesta del agente
     messages.push({
       role: 'agent',
       content: data.response,
       timestamp: data.timestamp || timestamp,
       isNew: true,
       feedback: null,
-      feedbackDetails: null
+      feedbackDetails: null,
+      message_id: data.message_id // Almacenar el ID del mensaje para enviar feedback
     });
   } catch (error) {
     console.error('Error al comunicarse con el backend:', error);
@@ -296,8 +324,12 @@ const sendMessage = async () => {
       timestamp,
       isNew: true,
       feedback: null,
-      feedbackDetails: null
+      feedbackDetails: null,
+      message_id: null
     });
+  } finally {
+    // Desactivar el estado de carga
+    isLoading.value = false;
   }
 
   // Remover la clase 'isNew' después de la animación
@@ -310,21 +342,46 @@ const sendMessage = async () => {
 const toggleFeedback = (messageIndex, type) => {
   const message = messages[messageIndex];
 
+  // Verificar que el mensaje tenga un ID válido
+  if (!message.message_id) {
+    console.error('No se puede dar feedback a un mensaje sin ID');
+    return;
+  }
+
   // Si ya está seleccionado el mismo tipo, lo deseleccionamos
   if (message.feedback === type) {
     message.feedback = null;
     message.feedbackDetails = null;
+
+    // Enviar al backend que se eliminó el feedback
+    sendFeedbackToBackend(message.message_id, null, null);
   } else {
     // Si no, seleccionamos el nuevo tipo
     message.feedback = type;
 
-    // Si es feedback negativo, mostramos el modal
-    if (type === 'negative') {
+    // Si es feedback positivo, enviamos directamente
+    if (type === 'positive') {
+      sendFeedbackToBackend(message.message_id, 'positive', null);
+    } else if (type === 'negative') {
+      // Si es feedback negativo, mostramos el modal
       currentFeedbackMessageIndex.value = messageIndex;
       selectedFeedbackOption.value = null;
       customFeedback.value = '';
       showFeedbackModal.value = true;
     }
+  }
+};
+
+// Función para enviar feedback al backend
+const sendFeedbackToBackend = async (messageId, feedbackType, feedbackDetails) => {
+  try {
+    await axios.patch(`${API_URL}/messages/${messageId}/feedback`, {
+      feedback_type: feedbackType,
+      feedback: feedbackDetails
+    });
+    console.log(`Feedback ${feedbackType} enviado para el mensaje ${messageId}`);
+  } catch (error) {
+    console.error('Error al enviar feedback:', error);
   }
 };
 
@@ -344,16 +401,20 @@ const closeFeedbackModal = () => {
 const submitFeedback = () => {
   if (currentFeedbackMessageIndex.value === null || selectedFeedbackOption.value === null) return;
 
-  const feedbackDetail = {
-    option: feedbackOptions[selectedFeedbackOption.value],
-    customText: selectedFeedbackOption.value === feedbackOptions.length - 1 ? customFeedback.value : null
-  };
+  const message = messages[currentFeedbackMessageIndex.value];
+  const feedbackDetail = feedbackOptions[selectedFeedbackOption.value];
+  const additionalText = selectedFeedbackOption.value === feedbackOptions.length - 1 ? customFeedback.value : null;
+
+  // Construir el detalle completo del feedback
+  const fullFeedbackDetail = additionalText
+      ? `${feedbackDetail}: ${additionalText}`
+      : feedbackDetail;
 
   // Guardar los detalles del feedback en el mensaje
-  messages[currentFeedbackMessageIndex.value].feedbackDetails = feedbackDetail;
+  message.feedbackDetails = fullFeedbackDetail;
 
-  // Aquí se podría enviar el feedback al backend
-  console.log('Feedback enviado:', feedbackDetail);
+  // Enviar al backend
+  sendFeedbackToBackend(message.message_id, 'negative', fullFeedbackDetail);
 
   // Cerrar el modal
   showFeedbackModal.value = false;
@@ -470,5 +531,43 @@ const submitFeedback = () => {
 .overflow-y-auto::-webkit-scrollbar-thumb {
   background-color: #3b82f6;
   border-radius: 3px;
+}
+
+/* Estilos para el loading de puntos */
+.loading-dots {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+}
+
+.loading-dots .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  animation: dotPulse 1.5s infinite ease-in-out;
+}
+
+.loading-dots .dot:nth-child(1) {
+  animation-delay: 0s;
+}
+
+.loading-dots .dot:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.loading-dots .dot:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes dotPulse {
+  0%, 100% {
+    transform: scale(0.7);
+    opacity: 0.5;
+  }
+  50% {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 </style>
