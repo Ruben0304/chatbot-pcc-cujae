@@ -233,7 +233,7 @@ import {
 } from 'lucide-vue-next';
 
 // Configuración base de la API
-const API_URL = "http://127.0.0.1:8000"; // Cambia esto a tu URL de producción cuando sea necesario
+const API_URL = "https://chatbot-pcc-backend.vercel.app"; // Cambia esto a tu URL de producción cuando sea necesario
 
 const isOpen = ref(false);
 const input = ref('');
