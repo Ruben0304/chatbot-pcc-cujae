@@ -303,13 +303,7 @@ const sendMessage = async () => {
 
   try {
     // Modificado: Enviando el mensaje en el formato que espera el backend
-    const { data } = await axios.post(`${API_URL}/chat`, {
-      message: userMessage
-    }, {
-      headers: {
-        'Content-Type': 'application/json'
-      }
-    });
+    const { data } = await axios.post(`${API_URL}/chat?message=${encodeURIComponent(userMessage)}`);
 
     // Añadir respuesta del agente
     messages.push({
