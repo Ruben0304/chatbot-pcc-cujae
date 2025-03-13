@@ -302,8 +302,13 @@ const sendMessage = async () => {
   isLoading.value = true;
 
   try {
+    // Modificado: Enviando el mensaje en el formato que espera el backend
     const { data } = await axios.post(`${API_URL}/chat`, {
       message: userMessage
+    }, {
+      headers: {
+        'Content-Type': 'application/json'
+      }
     });
 
     // Añadir respuesta del agente
@@ -318,6 +323,15 @@ const sendMessage = async () => {
     });
   } catch (error) {
     console.error('Error al comunicarse con el backend:', error);
+
+    // Añadir información de depuración
+    if (error.response) {
+      console.error('Detalles del error:', {
+        status: error.response.status,
+        data: error.response.data
+      });
+    }
+
     messages.push({
       role: 'agent',
       content: 'Lo siento, ha ocurrido un error al procesar tu mensaje.',
@@ -382,6 +396,12 @@ const sendFeedbackToBackend = async (messageId, feedbackType, feedbackDetails) =
     console.log(`Feedback ${feedbackType} enviado para el mensaje ${messageId}`);
   } catch (error) {
     console.error('Error al enviar feedback:', error);
+    if (error.response) {
+      console.error('Detalles del error de feedback:', {
+        status: error.response.status,
+        data: error.response.data
+      });
+    }
   }
 };
 
