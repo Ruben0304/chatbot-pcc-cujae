@@ -21,12 +21,21 @@
           <LucideBot class="h-6 w-6" />
           <h1 class="text-xl font-semibold">Asistente Virtual</h1>
         </div>
-        <button
-            @click="isOpen = false"
-            class="p-2 hover:bg-blue-700 rounded-lg transition-colors"
-        >
-          <LucideX class="h-6 w-6" />
-        </button>
+        <div class="flex items-center gap-2">
+          <button
+              @click="startNewConversation"
+              class="p-2 hover:bg-blue-700 rounded-lg transition-colors flex items-center gap-1"
+              title="Nueva conversación"
+          >
+            <LucidePlus class="h-5 w-5" />
+          </button>
+          <button
+              @click="isOpen = false"
+              class="p-2 hover:bg-blue-700 rounded-lg transition-colors"
+          >
+            <LucideX class="h-6 w-6" />
+          </button>
+        </div>
       </header>
 
       <!-- Chat messages -->
@@ -100,6 +109,7 @@
         </div>
 
         <!-- Loading indicator -->
+        <!-- Loading indicator -->
         <div v-if="isLoading" class="flex justify-center mt-6 animate-fade-in">
           <div class="loading-dots">
             <div class="dot bg-blue-600"></div>
@@ -107,29 +117,57 @@
             <div class="dot bg-blue-600"></div>
           </div>
         </div>
-      </div>
-
-      <!-- Input area -->
-      <div class="absolute bottom-0 left-0 right-0 p-4 bg-white border-t border-gray-100">
-        <div class="flex gap-3 items-center">
-          <textarea
-              v-model="input"
-              placeholder="Escribe tu mensaje..."
-              @keydown.enter.prevent="sendMessage"
-              class="flex-1 h-12 py-2 px-4 rounded-full border border-gray-200 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-700 placeholder-gray-400 text-sm"
-          ></textarea>
-          <button
-              @click="sendMessage"
-              :disabled="!input.trim() || isLoading"
-              class="p-3 bg-black text-white rounded-full hover:bg-gray-800 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center shadow-md hover:shadow-lg"
-          >
-            <LucideSend v-if="!isLoading" class="h-5 w-5" />
-            <div v-else class="h-5 w-5 animate-spin">
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M21 12a9 9 0 1 1-6.219-8.56"></path>
-              </svg>
+        
+        <!-- Componente de sugerencias simplificado (ajustado) -->
+        <div 
+          v-if="showSuggestions && !isLoading && messages.length <= 1" 
+          class="absolute left-0 right-0 bottom-28 px-6 animate-slide-up"
+        >
+          <div class="bg-white rounded-xl shadow-md border border-blue-100 overflow-hidden">
+            <div class="bg-blue-50 p-3 border-b border-blue-100">
+              <p class="text-sm text-blue-800 font-medium flex items-center gap-2">
+                <LucideLightbulb class="h-4 w-4" />
+                Preguntas frecuentes
+              </p>
             </div>
-          </button>
+            <div class="p-2">
+              <button 
+                v-for="(suggestion, idx) in displayedSuggestions" 
+                :key="idx"
+                @click="useSuggestion(suggestion)"
+                class="w-full text-left p-2.5 hover:bg-blue-50 rounded-lg text-sm text-gray-700 transition-colors flex items-center gap-2 my-1"
+              >
+                <div class="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                  <span class="text-xs text-blue-700 font-medium">{{ idx + 1 }}</span>
+                </div>
+                <span>{{ suggestion }}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Input area -->
+        <div class="absolute bottom-0 left-0 right-0 p-4 bg-white border-t border-gray-100">
+          <div class="flex gap-3 items-center">
+            <textarea
+                v-model="input"
+                placeholder="Escribe tu mensaje..."
+                @keydown.enter.prevent="sendMessage"
+                class="flex-1 h-12 py-2 px-4 rounded-full border border-gray-200 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-700 placeholder-gray-400 text-sm"
+            ></textarea>
+            <button
+                @click="sendMessage"
+                :disabled="!input.trim() || isLoading"
+                class="p-3 bg-black text-white rounded-full hover:bg-gray-800 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center shadow-md hover:shadow-lg"
+            >
+              <LucideSend v-if="!isLoading" class="h-5 w-5" />
+              <div v-else class="h-5 w-5 animate-spin">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 12a9 9 0 1 1-6.219-8.56"></path>
+                </svg>
+              </div>
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -220,7 +258,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, watch, nextTick } from 'vue';
+import { ref, reactive, watch, nextTick, onMounted } from 'vue';
 import axios from 'axios';
 import {
   LucideBot,
@@ -229,7 +267,12 @@ import {
   LucideSend,
   LucideThumbsUp,
   LucideThumbsDown,
-  LucideAlertCircle
+  LucideAlertCircle,
+  LucidePlus,
+  LucideArrowRight,
+  LucideHelpCircle,
+  LucideMessageSquare,
+  LucideLightbulb
 } from 'lucide-vue-next';
 
 // Configuración base de la API
@@ -239,6 +282,41 @@ const isOpen = ref(false);
 const input = ref('');
 const messagesContainer = ref(null);
 const isLoading = ref(false); // Estado para controlar el loading
+const showSuggestions = ref(true);
+
+// Lista de sugerencias
+const suggestions = [
+  "¿Para qué sirves?",
+  "¿Qué puedes hacer?",
+  "¿De qué puedes hablarme?",
+  "¿Cómo funcionas?",
+  "¿Quién te creó?",
+  "Buenos días",
+  "Necesito ayuda"
+];
+
+// Sugerencias que se mostrarán (3 aleatorias)
+const displayedSuggestions = ref([]);
+
+// Seleccionar sugerencias aleatorias
+const selectRandomSuggestions = () => {
+  const shuffled = [...suggestions].sort(() => 0.5 - Math.random());
+  displayedSuggestions.value = shuffled.slice(0, 3);
+};
+
+// Usar una sugerencia
+const useSuggestion = (suggestion) => {
+  input.value = suggestion;
+  showSuggestions.value = false;
+};
+
+// Iniciar nueva conversación
+const startNewConversation = () => {
+  messages.splice(1); // Mantener solo el primer mensaje (bienvenida)
+  showSuggestions.value = true;
+  selectRandomSuggestions();
+  input.value = '';
+};
 
 const messages = reactive([
   {
@@ -280,9 +358,23 @@ watch(messages, async () => {
   }
 }, { deep: true });
 
+// Ocultar sugerencias cuando se envía un mensaje
+watch(() => messages.length, (newLength) => {
+  if (newLength > 1) {
+    showSuggestions.value = false;
+  }
+});
+
+// Inicializar sugerencias al montar el componente
+onMounted(() => {
+  selectRandomSuggestions();
+});
+
 const sendMessage = async () => {
   if (!input.value.trim() || isLoading.value) return;
 
+  showSuggestions.value = false;
+  
   const timestamp = new Date().toLocaleTimeString('es-ES', {
     hour: '2-digit',
     minute: '2-digit'
@@ -582,6 +674,22 @@ const submitFeedback = () => {
   50% {
     transform: scale(1);
     opacity: 1;
+  }
+}
+
+/* Añadir nueva animación para el panel de sugerencias */
+.animate-slide-up {
+  animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes slideUp {
+  0% {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 </style>
