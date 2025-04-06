@@ -258,8 +258,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, watch, nextTick, onMounted } from 'vue';
-import axios from 'axios';
+import { ref, reactive, watch, nextTick, onMounted, inject } from 'vue';
 import {
   LucideBot,
   LucideX,
@@ -269,14 +268,12 @@ import {
   LucideThumbsDown,
   LucideAlertCircle,
   LucidePlus,
-  LucideArrowRight,
-  LucideHelpCircle,
-  LucideMessageSquare,
   LucideLightbulb
 } from 'lucide-vue-next';
 
-// Configuración base de la API
-const API_URL = "https://chatbot-pcc-backend.vercel.app"; // Cambia esto a tu URL de producción cuando sea necesario
+// Inject repositories
+const chatRepository = inject('chatRepository');
+const feedbackRepository = inject('feedbackRepository');
 
 const isOpen = ref(false);
 const input = ref('');
@@ -394,8 +391,8 @@ const sendMessage = async () => {
   isLoading.value = true;
 
   try {
-    // Modificado: Enviando el mensaje en el formato que espera el backend
-    const { data } = await axios.post(`${API_URL}/chat?message=${encodeURIComponent(userMessage)}`);
+    // Usar el chatRepository para enviar el mensaje
+    const data = await chatRepository.sendMessage(userMessage);
 
     // Añadir respuesta del agente
     messages.push({
@@ -409,14 +406,6 @@ const sendMessage = async () => {
     });
   } catch (error) {
     console.error('Error al comunicarse con el backend:', error);
-
-    // Añadir información de depuración
-    if (error.response) {
-      console.error('Detalles del error:', {
-        status: error.response.status,
-        data: error.response.data
-      });
-    }
 
     messages.push({
       role: 'agent',
@@ -453,7 +442,7 @@ const toggleFeedback = (messageIndex, type) => {
     message.feedback = null;
     message.feedbackDetails = null;
 
-    // Enviar al backend que se eliminó el feedback
+    // Enviar al backend que se eliminó el feedback usando el repository
     sendFeedbackToBackend(message.message_id, null, null);
   } else {
     // Si no, seleccionamos el nuevo tipo
@@ -472,22 +461,12 @@ const toggleFeedback = (messageIndex, type) => {
   }
 };
 
-// Función para enviar feedback al backend
+// Función para enviar feedback al backend usando el repository
 const sendFeedbackToBackend = async (messageId, feedbackType, feedbackDetails) => {
   try {
-    await axios.patch(`${API_URL}/messages/${messageId}/feedback`, {
-      feedback_type: feedbackType,
-      feedback: feedbackDetails
-    });
-    console.log(`Feedback ${feedbackType} enviado para el mensaje ${messageId}`);
+    await feedbackRepository.sendFeedback(messageId, feedbackType, feedbackDetails);
   } catch (error) {
     console.error('Error al enviar feedback:', error);
-    if (error.response) {
-      console.error('Detalles del error de feedback:', {
-        status: error.response.status,
-        data: error.response.data
-      });
-    }
   }
 };
 
@@ -519,7 +498,7 @@ const submitFeedback = () => {
   // Guardar los detalles del feedback en el mensaje
   message.feedbackDetails = fullFeedbackDetail;
 
-  // Enviar al backend
+  // Enviar al backend usando el repository
   sendFeedbackToBackend(message.message_id, 'negative', fullFeedbackDetail);
 
   // Cerrar el modal
