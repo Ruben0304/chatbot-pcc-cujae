@@ -2,7 +2,7 @@
 import { ChatRepository } from '@/repository/chatRepository'
 import { FeedbackRepository } from '@/repository/feedbackRepository'
 
-export const servicesPlugin = {
+export const repositoryModules = {
     install: (app) => {
         // Repositories
         const chatRepository = new ChatRepository()
