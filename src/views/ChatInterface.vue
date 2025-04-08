@@ -64,45 +64,23 @@
                 </span>
                 <span class="text-xs text-gray-400">{{ message.timestamp }}</span>
               </div>
+              <!-- Inside the template section, find the message content display and replace it with: -->
               <div
                   :class="[
                   'p-4 rounded-2xl shadow-sm max-w-[300px]',
                   message.role === 'agent'
-                    ? 'bg-white text-gray-800 rounded-tl-none'
+                    ? 'bg-white text-gray-800 rounded-tl-none markdown-content'
                     : 'bg-blue-600 text-white rounded-tr-none'
                 ]"
               >
-                <p class="text-sm whitespace-pre-wrap leading-relaxed">
+                <p v-if="message.role === 'user'" class="text-sm whitespace-pre-wrap leading-relaxed">
                   {{ message.content }}
                 </p>
-              </div>
-
-              <!-- Feedback buttons - only for agent messages -->
-              <div v-if="message.role === 'agent' && message.message_id" class="flex items-center gap-2 mt-1 ml-1">
-                <button
-                    @click="toggleFeedback(index, 'positive')"
-                    :class="[
-                    'p-1.5 rounded-full transition-all duration-300',
-                    message.feedback === 'positive' ? 'bg-green-100 text-green-600' : 'text-gray-400 hover:text-gray-600'
-                  ]"
-                >
-                  <LucideThumbsUp
-                      class="h-4 w-4"
-                      :class="{ 'animate-feedback': message.feedback === 'positive' }"
-                  />
-                </button>
-                <button
-                    @click="toggleFeedback(index, 'negative')"
-                    :class="[
-                    'p-1.5 rounded-full transition-all duration-300',
-                    message.feedback === 'negative' ? 'bg-red-100 text-red-600' : 'text-gray-400 hover:text-gray-600'
-                  ]"
-                >
-                  <LucideThumbsDown
-                      class="h-4 w-4"
-                      :class="{ 'animate-feedback': message.feedback === 'negative' }"
-                  />
-                </button>
+                <div 
+                  v-else 
+                  class="text-sm leading-relaxed markdown-body"
+                  v-html="renderMarkdown(message.content)"
+                ></div>
               </div>
             </div>
           </div>
@@ -259,6 +237,7 @@
 
 <script setup>
 import { ref, reactive, watch, nextTick, onMounted, inject } from 'vue';
+import { marked } from 'marked'; // Import the markdown parser
 import {
   LucideBot,
   LucideX,
@@ -274,6 +253,19 @@ import {
 // Inject repositories
 const chatRepository = inject('chatRepository');
 const feedbackRepository = inject('feedbackRepository');
+
+// Setup marked options for security
+marked.setOptions({
+  gfm: true,
+  breaks: true,
+  sanitize: false
+});
+
+// Function to convert markdown to HTML
+const renderMarkdown = (text) => {
+  if (!text) return '';
+  return marked.parse(text);
+};
 
 const isOpen = ref(false);
 const input = ref('');
@@ -670,5 +662,110 @@ const submitFeedback = () => {
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+/* Markdown styling */
+.markdown-body {
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.markdown-body :deep(h1) {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin-top: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.markdown-body :deep(h2) {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-top: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.markdown-body :deep(h3) {
+  font-size: 1.125rem;
+  font-weight: 600;
+  margin-top: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.markdown-body :deep(p) {
+  margin-bottom: 0.75rem;
+}
+
+.markdown-body :deep(ul), .markdown-body :deep(ol) {
+  padding-left: 1.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.markdown-body :deep(li) {
+  margin-bottom: 0.25rem;
+}
+
+.markdown-body :deep(pre) {
+  background-color: #f3f4f6;
+  padding: 0.75rem;
+  border-radius: 0.375rem;
+  overflow-x: auto;
+  margin-bottom: 0.75rem;
+}
+
+.markdown-body :deep(code) {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 0.875rem;
+  background-color: #f3f4f6;
+  padding: 0.125rem 0.25rem;
+  border-radius: 0.25rem;
+}
+
+.markdown-body :deep(pre code) {
+  background-color: transparent;
+  padding: 0;
+}
+
+.markdown-body :deep(blockquote) {
+  border-left: 4px solid #e5e7eb;
+  padding-left: 1rem;
+  margin-left: 0;
+  margin-right: 0;
+  font-style: italic;
+  margin-bottom: 0.75rem;
+}
+
+.markdown-body :deep(a) {
+  color: #2563eb;
+  text-decoration: underline;
+}
+
+.markdown-body :deep(table) {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 0.75rem;
+}
+
+.markdown-body :deep(th), .markdown-body :deep(td) {
+  border: 1px solid #e5e7eb;
+  padding: 0.5rem;
+  text-align: left;
+}
+
+.markdown-body :deep(th) {
+  background-color: #f3f4f6;
+}
+
+/* Adjust styles for dark-themed user messages */
+.bg-blue-600 .markdown-body :deep(a) {
+  color: #93c5fd;
+}
+
+.bg-blue-600 .markdown-body :deep(code) {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #f3f4f6;
+}
+
+.bg-blue-600 .markdown-body :deep(pre) {
+  background-color: rgba(255, 255, 255, 0.1);
 }
 </style>
